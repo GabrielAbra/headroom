@@ -115,6 +115,23 @@ def test_windows_hidden_launcher_propagates_failure_status(tmp_path) -> None:
     assert marker.read_text().strip() == "ran"
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="runs the generated cmd/ps1 chain")
+def test_windows_hidden_launcher_runs_generated_runner_chain(tmp_path) -> None:
+    # The health action is the generated .cmd shim -> powershell -> .ps1;
+    # the exit status has to survive the whole chain.
+    ps1 = tmp_path / "dir with space" / "ensure-headroom.ps1"
+    cmd = ps1.with_suffix(".cmd")
+    _render_windows_runner(ps1, cmd, ["cmd", "/c", "exit 13"])
+
+    launcher = _windows_hidden_launcher(str(cmd))
+    if launcher is None:
+        pytest.skip("pythonw.exe not available next to sys.executable")
+    command, arguments = launcher
+    result = subprocess.run(f'"{command}" {arguments}', timeout=60)
+
+    assert result.returncode == 13
+
+
 def test_windows_task_xml_system_scope_uses_localsystem() -> None:
     xml = _windows_task_xml(
         "C:\\tmp\\default\\ensure-headroom.cmd",
